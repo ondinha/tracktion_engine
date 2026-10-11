@@ -52,8 +52,10 @@ public:
     ///
     /// @param inputNode    The input node to remap channels from.
     /// @param channelMap   The channel mapping to apply.
+    /// @param passMidi     If false, the input's MIDI is dropped (e.g. a sidechain key is audio only).
     ChannelRemappingNode (std::unique_ptr<tracktion::graph::Node> inputNode,
-                          ChannelMap channelMap);
+                          ChannelMap channelMap,
+                          bool passMidi = true);
 
     /// Creates a ChannelRemappingNode in processor passthrough mode.
     ///
@@ -83,6 +85,7 @@ private:
 
     // Explicit mapping mode
     ChannelMap channelMap;
+    bool passMidi = true;
 
     // Processor passthrough mode
     ChannelConfiguration inputChannelConfig;

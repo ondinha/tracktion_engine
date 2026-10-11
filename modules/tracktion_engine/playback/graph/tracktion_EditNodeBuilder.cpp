@@ -1254,7 +1254,9 @@ std::unique_ptr<tracktion::graph::Node> createSidechainInputNodeForPlugin (Plugi
 
     auto sidechainInput = makeNode<ReturnNode> (getSidechainBusID (sidechainSourceID),
                                                 std::make_optional (static_cast<size_t> (plugin.itemID.getRawID())));
-    sidechainInput = makeNode<ChannelRemappingNode> (std::move (sidechainInput), std::move (sidechainChannelMap));
+    // The key is audio only: the source track's MIDI must not reach the plugin, as
+    // MIDI-triggerable effects (e.g. compressors with MIDI triggering) would react to it
+    sidechainInput = makeNode<ChannelRemappingNode> (std::move (sidechainInput), std::move (sidechainChannelMap), false);
 
     if (! hasDirectChannels)
         return sidechainInput;

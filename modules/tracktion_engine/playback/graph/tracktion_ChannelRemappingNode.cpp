@@ -13,10 +13,12 @@ namespace tracktion { inline namespace engine
 
 //==============================================================================
 ChannelRemappingNode::ChannelRemappingNode (std::unique_ptr<tracktion::graph::Node> inputNode,
-                                            ChannelMap channelMapToUse)
+                                            ChannelMap channelMapToUse,
+                                            bool shouldPassMidi)
     : mode (Mode::ExplicitMapping),
       input (std::move (inputNode)),
-      channelMap (std::move (channelMapToUse))
+      channelMap (std::move (channelMapToUse)),
+      passMidi (shouldPassMidi)
 {
     jassert (input != nullptr);
 
@@ -63,6 +65,10 @@ tracktion::graph::NodeProperties ChannelRemappingNode::getNodeProperties()
     {
         props.hasAudio = ! channelMap.isEmpty();
         props.numberOfChannels = channelMap.getRequiredOutputChannels();
+        props.hasMidi = props.hasMidi && passMidi;
+
+        if (! passMidi)
+            hash_combine (props.nodeID, size_t (0x6e6f6d696469)); // "nomidi"
 
         // Include mapping in hash
         for (const auto& e : channelMap.entries)
@@ -119,8 +125,8 @@ void ChannelRemappingNode::processExplicitMapping (ProcessContext& pc)
 {
     auto inputBuffers = input->getProcessedOutput();
 
-    // Always pass through MIDI
-    pc.buffers.midi.copyFrom (inputBuffers.midi);
+    if (passMidi)
+        pc.buffers.midi.copyFrom (inputBuffers.midi);
 
     // Remap audio channels - use add() to accumulate (allows multiple sources to one dest)
     for (const auto& e : channelMap.entries)
