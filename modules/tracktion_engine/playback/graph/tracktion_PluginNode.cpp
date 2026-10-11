@@ -120,9 +120,10 @@ void PluginNode::prepareToPlay (const tracktion::graph::PlaybackInitialisationIn
     if (shouldUseFineGrainAutomation (*plugin))
         subBlockSizeToUse = std::max (128, 128 * juce::roundToInt (info.sampleRate / 44100.0));
 
-    canProcessBypassed = balanceLatency
-                            && dynamic_cast<ExternalPlugin*> (plugin.get()) != nullptr
-                            && latencyNumSamples > 0;
+    // any plug-in with latency, not only external ones: a bypassed internal plug-in (e.g. an STFT effect) would
+    // otherwise pass its input through undelayed while the graph still compensates for its latency - its track
+    // then plays early by that latency
+    canProcessBypassed = balanceLatency && latencyNumSamples > 0;
 
     if (canProcessBypassed)
     {
