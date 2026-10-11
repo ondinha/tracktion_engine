@@ -393,6 +393,7 @@ namespace IDs
     DECLARE_ID (currentCurve)
     DECLARE_ID (hash)
     DECLARE_ID (processMidiWhenMuted)
+    DECLARE_ID (midiInputEnabled)
     DECLARE_ID (LOOPINFO)
     DECLARE_ID (numBeats)
     DECLARE_ID (rootNote)

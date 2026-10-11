@@ -187,6 +187,12 @@ public:
     juce::CachedValue<float> dryValue, wetValue;
     AutomatableParameter::Ptr dryGain, wetGain;
 
+    /** If false, the plugin isn't sent the MIDI arriving on its track (default true).
+        Useful for audio effects after an instrument that would otherwise react to the
+        track's notes (e.g. compressors with MIDI triggering).
+    */
+    juce::CachedValue<bool> midiInputEnabled;
+
     ActiveNoteList getActiveNotes() const           { return activeNotes; }
 
     //==============================================================================
@@ -231,6 +237,8 @@ private:
     std::unique_ptr<PluginPlayHead> playhead;
 
     bool fullyInitialised = false, supportsMPE = false, isFlushingLayoutToState = false;
+    bool wasMidiInputEnabled = true;
+    MidiMessageArray noIncomingMidi;
 
     struct MPEChannelRemapper;
     std::unique_ptr<MPEChannelRemapper> mpeRemapper;

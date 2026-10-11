@@ -669,6 +669,7 @@ ExternalPlugin::ExternalPlugin (PluginCreationInfo info)  : Plugin (info)
 
     dryValue.referTo (state, IDs::dry, um);
     wetValue.referTo (state, IDs::wet, um, 1.0f);
+    midiInputEnabled.referTo (state, IDs::midiInputEnabled, um, true);
 
     dryGain->attachToCurrentValue (dryValue);
     wetGain->attachToCurrentValue (wetValue);
@@ -1402,7 +1403,17 @@ void ExternalPlugin::applyToBuffer (const PluginRenderContext& fc)
     midiBuffer.clear();
 
     if (fc.bufferForMidiMessages != nullptr)
-        prepareIncomingMidiMessages (*fc.bufferForMidiMessages, fc.bufferNumSamples, fc.isPlaying);
+    {
+        const bool midiIn = midiInputEnabled.get();
+
+        // switched off: release whatever the plugin was still holding
+        if (wasMidiInputEnabled && ! midiIn)
+            midiPanicNeeded = true;
+
+        wasMidiInputEnabled = midiIn;
+        prepareIncomingMidiMessages (midiIn ? *fc.bufferForMidiMessages : noIncomingMidi,
+                                     fc.bufferNumSamples, fc.isPlaying);
+    }
 
     if (fc.destBuffer != nullptr)
     {
