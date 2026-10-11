@@ -275,7 +275,7 @@ public:
     virtual bool shouldMeasureCpuUsage() const noexcept  { return true; }
 
     /** Returns the proportion of the current buffer size spent processing this plugin. */
-    double getCpuUsage() const noexcept     { return juce::jlimit (0.0, 1.0, timeToCpuScale * cpuUsageMs.load()); }
+    double getCpuUsage() const noexcept     { return juce::jlimit (0.0, 1.0, timeToCpuScale.load() * cpuUsageMs.load()); }
 
     //==============================================================================
     // Channel configuration & audio characteristics
@@ -645,7 +645,7 @@ private:
     mutable AutomatableParameter::Ptr quickControlParameter;
 
     std::atomic<int> initialiseCount { 0 };
-    double timeToCpuScale = 0;
+    std::atomic<double> timeToCpuScale { 0 };   // read by getCpuUsage() from any thread
     std::atomic<double> cpuUsageMs { 0 };
     std::atomic<bool> isClipEffect { false };
 
