@@ -157,6 +157,9 @@ private:
         auto buffer = tracktion::graph::toAudioBuffer (block);
         measurer.processBuffer (buffer, 0, buffer.getNumSamples());
 
+        if (auto* tap = meterPlugin.audioTap.load (std::memory_order_acquire))
+            tap->tapBlock (buffer, 0, buffer.getNumSamples());
+
         measurer.setShowMidi (meterPlugin.showMidiActivity);
         measurer.processMidi (midi, nullptr);
     }

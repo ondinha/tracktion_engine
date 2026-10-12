@@ -47,6 +47,19 @@ public:
 
     juce::CachedValue<bool> showMidiActivity;
 
+    /** Receives every block the meter sees (the track's output), e.g. for an analyser.
+        Called on the audio thread: must be realtime-safe. The owner keeps it alive for
+        a while after clearing the pointer, as a block may still be in progress.
+    */
+    struct AudioTap
+    {
+        virtual ~AudioTap() = default;
+        virtual void tapBlock (const juce::AudioBuffer<float>&, int startSample, int numSamples) = 0;
+    };
+
+    /** Set or clear (nullptr) the tap; nothing is done while it's null. */
+    std::atomic<AudioTap*> audioTap { nullptr };
+
 private:
     int controllerTrack = -1;
     LevelMeasurer::Client controllerLevelClient;
