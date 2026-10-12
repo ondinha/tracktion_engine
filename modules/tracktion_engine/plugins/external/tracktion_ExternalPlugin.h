@@ -193,6 +193,10 @@ public:
     */
     juce::CachedValue<bool> midiInputEnabled;
 
+    /** True once the plug-in threw an exception while processing audio. It's then silenced (the host carries on instead
+        of terminating) until it's initialised again (the next playback / render). Read from any thread. */
+    bool hasProcessingFailed() const noexcept       { return processingFailed.load (std::memory_order_relaxed); }
+
     ActiveNoteList getActiveNotes() const           { return activeNotes; }
 
     //==============================================================================
@@ -271,6 +275,8 @@ private:
     static bool requiresAsyncInstantiation (Engine&, const juce::PluginDescription&);
 
     //==============================================================================
+    std::atomic<bool> processingFailed { false };
+
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (ExternalPlugin)
 };
 

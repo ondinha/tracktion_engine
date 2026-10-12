@@ -1188,6 +1188,7 @@ void ExternalPlugin::initialise (const PluginInitialisationInfo& info)
 
     mpeRemapper->reset();
     midiPanicNeeded = false;
+    processingFailed = false;   // a fresh start: a plug-in that threw gets another chance
 
     if (auto pi = getAudioPluginInstance())
     {
@@ -1510,15 +1511,39 @@ void ExternalPlugin::processPluginBlock (juce::AudioPluginInstance& pluginInstan
     juce::AudioBuffer<float> asb (fc.destBuffer->getArrayOfWritePointers(), fc.destBuffer->getNumChannels(),
                                   fc.bufferStartSample, fc.bufferNumSamples);
 
+    // A plug-in that throws must not take the host down (an uncaught exception terminates the process): it's silenced
+    // until it's initialised again. The try costs nothing until something throws.
+    if (processingFailed.load (std::memory_order_relaxed))
+    {
+        asb.clear();
+        return;
+    }
+
+    const auto callPlugin = [&]
+    {
+        try
+        {
+            if (processedBypass)
+                pluginInstance.processBlockBypassed (asb, midiBuffer);
+            else
+                pluginInstance.processBlock (asb, midiBuffer);
+            return true;
+        }
+        catch (...)
+        {
+            processingFailed = true;
+            asb.clear();
+            return false;
+        }
+    };
+
     auto dry = dryGain->getCurrentValue();
     auto wet = wetGain->getCurrentValue();
 
     if (dry <= 0.00004f)
     {
-        if (processedBypass)
-            pluginInstance.processBlockBypassed (asb, midiBuffer);
-        else
-            pluginInstance.processBlock (asb, midiBuffer);
+        if (! callPlugin())
+            return;
 
         zeroDenormalisedValuesIfNeeded (asb);
 
@@ -1533,10 +1558,8 @@ void ExternalPlugin::processPluginBlock (juce::AudioPluginInstance& pluginInstan
         for (int i = 0; i < numChans; ++i)
             dryAudio.buffer.copyFrom (i, 0, asb, i, 0, fc.bufferNumSamples);
 
-        if (processedBypass)
-            pluginInstance.processBlockBypassed (asb, midiBuffer);
-        else
-            pluginInstance.processBlock (asb, midiBuffer);
+        if (! callPlugin())
+            return;
 
         zeroDenormalisedValuesIfNeeded (asb);
 
