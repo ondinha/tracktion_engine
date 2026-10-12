@@ -620,6 +620,11 @@ public:
     /** The global TempoSequence of this Edit. */
     TempoSequence tempoSequence;
 
+    /** Live playback only: the time-stretch mode used for audio clips whose own mode is 'disabled'. Set it (and
+        restart playback) while the playback speed differs from 1 (EditPlaybackContext::setTempoAdjustment) so those
+        clips keep their pitch instead of being resampled; renders always use the clips' own modes. */
+    int realTimeStretchFallback = 0;   // a TimeStretcher::Mode (0 = disabled: clips keep their own behaviour)
+
     /** Returns the current TimecodeDisplayFormat. */
     TimecodeDisplayFormat getTimecodeFormat() const;
 

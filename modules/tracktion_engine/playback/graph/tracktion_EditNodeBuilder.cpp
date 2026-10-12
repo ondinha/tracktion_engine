@@ -501,7 +501,10 @@ std::unique_ptr<tracktion::graph::Node> createNodeForAudioClip (AudioClipBase& c
     }
     else
     {
-        const auto timeStretcherMode = clip.getActualTimeStretchMode();
+        auto timeStretcherMode = clip.getActualTimeStretchMode();
+
+        if (timeStretcherMode == TimeStretcher::disabled && ! params.forRendering)
+            timeStretcherMode = (TimeStretcher::Mode) clip.edit.realTimeStretchFallback;   // a playback speed change keeps the pitch
         const auto timeStretcherOpts = clip.elastiqueProOptions.get();
         const auto readAhead = params.readAheadTimeStretchNodes ? WaveNodeRealTime::ReadAhead::yes
                                                                 : WaveNodeRealTime::ReadAhead::no;
