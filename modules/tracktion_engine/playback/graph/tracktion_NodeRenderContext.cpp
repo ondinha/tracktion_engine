@@ -164,7 +164,7 @@ NodeRenderContext::NodeRenderContext (Renderer::RenderTask& owner_, Renderer::Pa
     plugins = findAllPlugins (*nodePlayer->getNode());
 
     // Set the realtime property before preparing to play
-    Renderer::RenderTask::setAllPluginsRealtime (plugins, r.realTimeRender);
+    Renderer::RenderTask::setAllPluginsRealtime (plugins, r.realTimeRender || r.keepPluginsRealtime);
     nodePlayer->prepareToPlay (r.sampleRateForAudio, r.blockSizeForAudio);
     Renderer::RenderTask::flushAllPlugins (plugins, r.sampleRateForAudio, r.blockSizeForAudio);
 

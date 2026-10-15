@@ -97,6 +97,7 @@ public:
         bool usePlugins = true;                                 ///< If false, clip/tracks plugins will be ommited from the render
         bool useMasterPlugins = false;                          ///< If true, master plugins will be included
         bool realTimeRender = false;                            ///< If true, there will be a pause between each rendered block to simulate real-time
+        bool keepPluginsRealtime = false;                       ///< If true, plugins keep their real-time processing mode (as in playback) instead of being switched to offline mode
         bool ditheringEnabled = false;                          ///< If true, low-level noise will be added to the output for non-float formats
         bool checkNodesForAudio = true;                         ///< If true, attempting to render an Edit that doesn't produce audio will fail
 
