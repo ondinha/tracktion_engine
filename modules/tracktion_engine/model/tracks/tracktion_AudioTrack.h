@@ -259,6 +259,8 @@ private:
     int getIndexOfFreezePoint();
     void freezePlugins (juce::Range<int> pluginsToFreeze);
     void unFreezeTrack();
+    bool areFreezesRenderedByHost() const;
+    void updateHostRenderedFreeze();
     juce::File getFreezeFile() const;
 
     void updateTracksToGhost();

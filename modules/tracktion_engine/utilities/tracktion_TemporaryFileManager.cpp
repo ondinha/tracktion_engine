@@ -339,6 +339,9 @@ juce::String TemporaryFileManager::getDeviceIDFromFreezeFile (Edit& edit, const 
 
 juce::File TemporaryFileManager::getFreezeFileForTrack (const AudioTrack& track)
 {
+    if (auto f = track.edit.engine.getEngineBehaviour().getTrackFreezeFile (track); f != juce::File())
+        return f;
+
     return track.edit.getTempDirectory (true)
              .getChildFile (getTrackFreezePrefix() + "0_" + track.itemID.toString() + ".freeze");
 }

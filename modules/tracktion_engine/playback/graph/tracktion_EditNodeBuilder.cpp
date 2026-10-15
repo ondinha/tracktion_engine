@@ -1077,8 +1077,11 @@ std::unique_ptr<tracktion::graph::Node> createNodeForFrozenAudioTrack (AudioTrac
 
     const bool processMidiWhenMuted = track.state.getProperty (IDs::processMidiWhenMuted, false);
     auto trackMuteState = std::make_unique<TrackMuteState> (track, false, processMidiWhenMuted);
-    auto node = tracktion::graph::makeNode<WaveNode> (AudioFile (track.edit.engine, TemporaryFileManager::getFreezeFileForTrack (track)),
-                                                     TimeRange (TimePosition(), track.getLengthIncludingInputTracks()),
+    // The freeze file holds the tails past the last clip too: play all of it
+    AudioFile freezeFile (track.edit.engine, TemporaryFileManager::getFreezeFileForTrack (track));
+    const auto length = std::max (track.getLengthIncludingInputTracks(), TimeDuration::fromSeconds (freezeFile.getLength()));
+    auto node = tracktion::graph::makeNode<WaveNode> (freezeFile,
+                                                     TimeRange (TimePosition(), length),
                                                      TimeDuration(), TimeRange(), LiveClipLevel(),
                                                      1.0, track.getChannelConfiguration(), track.getChannelConfiguration(),
                                                      params.processState,
@@ -1562,7 +1565,11 @@ std::unique_ptr<tracktion::graph::Node> createNodeForAudioTrack (AudioTrack& at,
     jassert (at.isProcessing (false));
     auto& playHeadState = params.processState.playHeadState;
 
-    if (! params.forRendering && at.isFrozen (AudioTrack::individualFreeze))
+    // A frozen track whose freeze file (or Freeze Point) is missing plays as normal rather than
+    // silently, or through the plugins already in its freeze
+    if (! params.forRendering && at.isFrozen (AudioTrack::individualFreeze)
+         && at.hasFreezePointPlugin()
+         && TemporaryFileManager::getFreezeFileForTrack (at).existsAsFile())
         return createNodeForFrozenAudioTrack (at, playHeadState, params);
 
     auto inputTracks = getDirectInputTracks (at);

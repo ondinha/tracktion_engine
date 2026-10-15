@@ -204,6 +204,17 @@ public:
 
     virtual bool ignoreBWavTimestamps()                                             { return false; }
 
+    /// If this returns true, the host renders track freezes itself (e.g. in the background) and
+    /// the engine never starts a freeze render: setting a track's frozenIndividually property only
+    /// switches its playback to the freeze file (and skips the plugins before its Freeze Point)
+    /// when that file exists. Moving the Freeze Point or unfreezing leaves the Freeze Point where
+    /// it is, and nothing refreezes automatically - the host owns the freeze state.
+    virtual bool areTrackFreezesRenderedByHost()                                    { return false; }
+
+    /// The file a track's freeze is read from (and rendered to). An empty File = the default,
+    /// a file in the Edit's temporary directory.
+    virtual juce::File getTrackFreezeFile (const AudioTrack&)                       { return {}; }
+
     virtual bool areAudioClipsRemappedWhenTempoChanges()                            { return true; }
     virtual void setAudioClipsRemappedWhenTempoChanges (bool)                       {}
     virtual bool areAutoTempoClipsRemappedWhenTempoChanges()                        { return true; }

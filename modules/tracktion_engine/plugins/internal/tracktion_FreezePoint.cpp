@@ -188,6 +188,7 @@ void FreezePointPlugin::updateTrackFreezeStatus()
         if (lastFreezeIndex != newIndex)
         {
             if (lastFreezeIndex != -1
+                 && ! at->edit.engine.getEngineBehaviour().areTrackFreezesRenderedByHost()
                  && isTrackFrozen()
                  && ! at->pluginList.getEdit().isLoading())
             {

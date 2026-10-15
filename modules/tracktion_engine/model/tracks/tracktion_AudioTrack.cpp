@@ -59,6 +59,10 @@ struct AudioTrack::FreezeUpdater : private ValueTreeAllEventListener,
     void editFinishedLoading()
     {
         state.addListener (this);
+
+        // A host-rendered freeze skips its plugins again once they're all loaded
+        if (owner.areFreezesRenderedByHost())
+            owner.updateHostRenderedFreeze();
     }
 
 private:
@@ -93,7 +97,10 @@ private:
 
         if (compareAndReset (updateFreeze))
         {
-            if (owner.isFrozen (Track::individualFreeze) && (! owner.hasFreezePointPlugin()))
+            // A host-rendered freeze follows its Freeze Point (an undo can bring the two back in either order)
+            if (owner.areFreezesRenderedByHost())
+                owner.updateHostRenderedFreeze();
+            else if (owner.isFrozen (Track::individualFreeze) && (! owner.hasFreezePointPlugin()))
                 owner.unfreeze (individualFreeze);
         }
     }
@@ -182,8 +189,15 @@ void AudioTrack::initialise()
     if (! edit.isLoading())
         getClipSlotList().ensureNumberOfSlots (edit.getSceneList().getNumScenes());
 
-    if (frozenIndividually && ! getFreezeFile().existsAsFile())
+    if (areFreezesRenderedByHost())
+    {
+        if (! edit.isLoading())
+            updateHostRenderedFreeze();
+    }
+    else if (frozenIndividually && ! getFreezeFile().existsAsFile())
+    {
         unfreeze (individualFreeze);
+    }
 
     output->initialise();
 }
@@ -857,7 +871,9 @@ void AudioTrack::valueTreePropertyChanged (juce::ValueTree& v, const juce::Ident
         {
             frozenIndividually.forceUpdateOfCachedValue();
 
-            if (frozenIndividually)
+            if (areFreezesRenderedByHost())
+                updateHostRenderedFreeze();
+            else if (frozenIndividually)
                 freezeTrack();
             else
                 unFreezeTrack();
@@ -1240,7 +1256,47 @@ bool AudioTrack::insertFreezePointIfRequired()
 
 void AudioTrack::freezeTrackAsync() const
 {
+    if (areFreezesRenderedByHost())
+        return;
+
     freezeUpdater->freeze();
+}
+
+bool AudioTrack::areFreezesRenderedByHost() const
+{
+    return edit.engine.getEngineBehaviour().areTrackFreezesRenderedByHost();
+}
+
+void AudioTrack::updateHostRenderedFreeze()
+{
+    // The host rendered the freeze file: the plugins before the Freeze Point are skipped while the
+    // track plays it. Without the file the track plays as normal (nothing is skipped)
+    const int freezeIndex = getIndexOfFreezePoint();
+    const auto toFreeze = frozenIndividually && freezeIndex >= 0 && getFreezeFile().existsAsFile()
+                            ? juce::Range<int> (0, freezeIndex) : juce::Range<int>();
+    bool differs = false;
+    int i = 0;
+
+    for (auto p : pluginList)
+        differs = differs || p->isFrozen() != toFreeze.contains (i++);
+
+    if (! differs)
+        return;
+
+    // Derived from the track's freeze state, so kept out of the undo history: this also runs while an
+    // undo / redo flips that state, when the UndoManager would refuse (and drop) a new action
+    i = 0;
+
+    for (auto p : pluginList)
+    {
+        if (toFreeze.contains (i++))
+            p->state.setProperty (IDs::frozen, true, nullptr);
+        else
+            p->state.removeProperty (IDs::frozen, nullptr);
+    }
+
+    changed();
+    edit.restartPlayback();
 }
 
 int AudioTrack::getIndexOfDefaultFreezePoint()
