@@ -534,19 +534,13 @@ void ClipTrack::insertSpace (TimePosition time, TimeDuration length)
 {
     splitAt (time);
 
-    // Build a copied list first, as clips get moved out-of-order
+    // Build a copied list first, as clips get moved out-of-order. The clip list isn't sorted by time (new and pasted
+    // clips are appended), so every clip is checked - stopping at the first earlier one left later clips behind.
     Clip::Array clipsToDo;
-    const auto& clips = getClips();
 
-    for (int i = clips.size(); --i >= 0;)
-    {
-        auto c = clips.getUnchecked (i);
-
+    for (auto c : getClips())
         if (c->getPosition().time.getCentre() >= time)
             clipsToDo.add (c);
-        else
-            break;
-    }
 
     for (int i = clipsToDo.size(); --i >= 0;)
         if (auto c = clipsToDo.getUnchecked (i).get())
