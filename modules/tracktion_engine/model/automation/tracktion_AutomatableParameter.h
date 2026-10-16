@@ -246,6 +246,7 @@ protected:
     struct AttachedIntValue;
     struct AttachedBoolValue;
     std::unique_ptr<AttachedValue> attachedValue;
+    bool updatingFromAttachedValue = false;   // updateFromAttachedValue: no write-back
     juce::ListenerList<Listener> listeners;
 
     SafeSelectable<Edit> editRef;

@@ -1291,6 +1291,10 @@ void AutomatableParameter::attachToCurrentValue (juce::CachedValue<bool>& v)
 
 void AutomatableParameter::updateFromAttachedValue()
 {
+    // the parameter follows the stored value (after an undo / redo): nothing is written back - a write here (a value
+    // snapped or clipped differently) was a new undo action that cleared the redo stack
+    const juce::ScopedValueSetter<bool> svs (updatingFromAttachedValue, true);
+
     if (attachedValue)
         attachedValue->updateParameterFromValue();
 }
@@ -1435,13 +1439,13 @@ void AutomatableParameter::setParameterValue (float value, bool isFollowingCurve
                     }
                     else
                     {
-                        if (numPoints == 1)
+                        if (numPoints == 1 && ! updatingFromAttachedValue)
                             curve.movePoint (*this, 0, curve.getPointTime (0), value, false, &ed.getUndoManager());
                     }
                 }
             }
 
-            if (attachedValue != nullptr)
+            if (attachedValue != nullptr && ! updatingFromAttachedValue)
             {
                 attachedValue->cancelPendingUpdate();
                 attachedValue->setValue (value);
