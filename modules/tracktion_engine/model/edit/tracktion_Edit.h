@@ -198,6 +198,12 @@ public:
     /** Saves the plugin, automap and ARA states to the state ValueTree. */
     void flushState();
 
+    /** True while flushState() stores the plug-ins' live state (Plugin::getUndoManager is null then: a save is no
+        undo step). */
+    bool isFlushingState() const noexcept           { return flushingState; }
+    /** One plug-in's live state into its ValueTree, outside the undo history (an export / a preset save reads it). */
+    void flushPluginStateWithoutUndo (Plugin&);
+
     /** Saves the specified plugin state to the state ValueTree. */
     void flushPluginStateIfNeeded (Plugin&);
 
@@ -898,6 +904,7 @@ public:
     juce::ValueTree inputDeviceState;        ///< The ValueTree of the input device states.
 
 private:
+    bool flushingState = false;   // Edit::flushState: plug-in state writes are no undo step
     //==============================================================================
     const int instanceId;
     ProjectItemRef editProjectItemRef;

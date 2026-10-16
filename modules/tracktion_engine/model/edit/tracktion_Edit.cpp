@@ -1173,6 +1173,8 @@ void Edit::flushState()
                             IDs::modifiedBy, engine.getPropertyStorage().getUserName(),
                             IDs::projectID, editProjectItemRef.toString());
 
+    const juce::ScopedValueSetter<bool> notUndoable (flushingState, true);
+
     for (auto p : getAllPlugins (*this, true))
         p->flushPluginStateToValueTree();
 
@@ -1189,6 +1191,12 @@ void Edit::flushState()
 
     if (araDocumentHolder != nullptr)
         araDocumentHolder->flushStateToValueTree();
+}
+
+void Edit::flushPluginStateWithoutUndo (Plugin& p)
+{
+    const juce::ScopedValueSetter<bool> notUndoable (flushingState, true);
+    p.flushPluginStateToValueTree();
 }
 
 void Edit::flushPluginStateIfNeeded (Plugin& p)

@@ -354,7 +354,9 @@ juce::StringArray Plugin::getInputChannelNames()
 
 juce::UndoManager* Plugin::getUndoManager() const noexcept
 {
-    return &edit.getUndoManager();
+    // Edit::flushState (a save) stores the plug-ins' live state outside the undo history: a save must not become an
+    // invisible undo step, nor clear the redo stack
+    return edit.isFlushingState() ? nullptr : &edit.getUndoManager();
 }
 
 void Plugin::playStartedOrStopped()
