@@ -33,6 +33,9 @@ public:
     bool isParameterMapped (AutomatableParameter& param) const  { return parameters.contains (&param); }
     bool getParameterMapping (AutomatableParameter&, int& channel, int& controllerID) const;
     bool removeParameterMapping (AutomatableParameter&);
+    /** adds a mapping (or returns the row of an identical one) - public so a host can start a learn for one parameter
+        (addMapping + listenToRow) without the built-in mappings editor */
+    int addMapping (int id, int channel, const AutomatableParameter::Ptr&);
 
     //==============================================================================
     int getNumControllerIDs() const                 { return controllerIDs.size(); }
@@ -91,7 +94,6 @@ private:
     juce::CriticalSection lock;
 
     void tellEditAboutChange();
-    int addMapping (int id, int channel, const AutomatableParameter::Ptr&);
 
     void handleAsyncUpdate() override;
 };
