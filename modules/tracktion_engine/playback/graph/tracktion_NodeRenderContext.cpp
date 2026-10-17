@@ -59,7 +59,7 @@ NodeRenderContext::NodeRenderContext (Renderer::RenderTask& owner_, Renderer::Pa
 
     nodePlayer = std::make_unique<TracktionNodePlayer> (std::move (n), *processState, r.sampleRateForAudio, r.blockSizeForAudio,
                                                         getPoolCreatorFunction (static_cast<tracktion::graph::ThreadPoolStrategy> (EditPlaybackContext::getThreadPoolStrategy())));
-    nodePlayer->setNumThreads ((size_t) p.engine->getEngineBehaviour().getNumberOfCPUsToUseForAudio() - 1);
+    nodePlayer->setNumThreads ((size_t) p.engine->getEngineBehaviour().getNumberOfCPUsToUseForRendering() - 1);
 
     numLatencySamplesToDrop = nodePlayer->getNode()->getNodeProperties().latencyNumSamples;
     r.time = r.time.withEnd (r.time.getEnd() + TimeDuration::fromSamples (numLatencySamplesToDrop, r.sampleRateForAudio));
@@ -488,7 +488,7 @@ juce::String NodeRenderContext::renderMidi (Renderer::RenderTask& owner,
     // Ensure the node player gets deleted on the message thread
     const juce::ErasedScopeGuard scope ([&nodePlayer] { callBlocking ([&] { nodePlayer.reset(); }); });
 
-    nodePlayer->setNumThreads ((size_t) r.engine->getEngineBehaviour().getNumberOfCPUsToUseForAudio() - 1);
+    nodePlayer->setNumThreads ((size_t) r.engine->getEngineBehaviour().getNumberOfCPUsToUseForRendering() - 1);
 
     //TODO: Should really purge any non-MIDI nodes here then return if no MIDI has been found
 

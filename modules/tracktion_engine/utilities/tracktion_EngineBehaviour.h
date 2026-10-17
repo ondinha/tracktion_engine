@@ -134,6 +134,9 @@ public:
     virtual bool shouldPlayMidiGuideNotes()                                         { return false; }
 
     virtual int getNumberOfCPUsToUseForAudio()                                      { return juce::jmax (1, juce::SystemStats::getNumCpus()); }
+    /// The number of CPUs an offline render (Renderer / EditRenderer: bounce, freeze...) may use.
+    /// Renders have no real-time deadline, so a host can let them use more cores than live playback.
+    virtual int getNumberOfCPUsToUseForRendering()                                  { return getNumberOfCPUsToUseForAudio(); }
 
     /// Should muted tracks processing be disabled to save CPU
     virtual bool shouldProcessMutedTracks()                                         { return false; }
