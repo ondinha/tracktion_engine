@@ -138,6 +138,13 @@ public:
     /// Renders have no real-time deadline, so a host can let them use more cores than live playback.
     virtual int getNumberOfCPUsToUseForRendering()                                  { return getNumberOfCPUsToUseForAudio(); }
 
+    /** Analog-style summing ("console summing"): when > 0, every input of a summing point - the tracks routed into a
+        track, and the tracks playing into an output device / the master (live and rendered) - is encoded with
+        sin (k x) / k and the sum decoded with its inverse, so a lone source passes unchanged and only sources summed
+        together interact (a little intermodulation that grows with level). Sends and racks are left alone.
+        k = the curve's strength (0 = off, the default). */
+    virtual float getSummingCurve (Edit&)                                            { return 0.0f; }
+
     /// Should muted tracks processing be disabled to save CPU
     virtual bool shouldProcessMutedTracks()                                         { return false; }
 

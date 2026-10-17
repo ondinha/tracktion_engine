@@ -22,6 +22,80 @@ namespace tracktion::inline engine
 //==============================================================================
 namespace
 {
+    /** EngineBehaviour::getSummingCurve: encode = sin (k x) / k, decode = its inverse. Past `knee` radians both
+        continue in a straight line, so nothing clips and the two stay exact inverses. Audio only; MIDI passes. */
+    class SummingCurveNode final : public tracktion::graph::Node
+    {
+    public:
+        SummingCurveNode (std::unique_ptr<Node> in, float k, bool enc)
+            : input (std::move (in)), curve (k), encode (enc) {}
+
+        tracktion::graph::NodeProperties getNodeProperties() override
+        {
+            auto props = input->getNodeProperties();
+
+            if (props.nodeID != 0)
+                hash_combine (props.nodeID, encode ? size_t (0x73756d656e63) : size_t (0x73756d646563)); // "sumenc" / "sumdec"
+
+            return props;
+        }
+
+        std::vector<Node*> getDirectInputNodes() override   { return { input.get() }; }
+        bool isReadyToProcess() override                    { return input->hasProcessed(); }
+
+        void process (ProcessContext& pc) override
+        {
+            auto source = input->getProcessedOutput();
+            pc.buffers.midi.copyFrom (source.midi);
+            auto dest = pc.buffers.audio;
+            const auto numFrames = dest.getNumFrames();
+            const auto numChannels = std::min (source.audio.getNumChannels(), dest.getNumChannels());
+
+            for (choc::buffer::ChannelCount c = 0; c < numChannels; ++c)
+            {
+                auto d = dest.getIterator (c);
+                auto s = source.audio.getIterator (c);
+
+                for (choc::buffer::FrameCount i = 0; i < numFrames; ++i)
+                    *d++ = shape (*s++);
+            }
+
+            for (auto c = numChannels; c < dest.getNumChannels(); ++c)
+                dest.getChannel (c).clear();
+        }
+
+    private:
+        std::unique_ptr<Node> input;
+        const float curve;
+        const bool encode;
+        static constexpr float knee = 1.2f;
+        const float sinKnee = std::sin (knee), cosKnee = std::cos (knee);
+
+        float shape (float x) const
+        {
+            const float u = curve * x, a = std::abs (u);
+
+            if (encode)
+                return (a <= knee ? std::sin (u) : std::copysign (sinKnee + cosKnee * (a - knee), u)) / curve;
+
+            return (a <= sinKnee ? std::asin (u) : std::copysign (knee + (a - sinKnee) / cosKnee, u)) / curve;
+        }
+    };
+
+    /** wraps a summing point's input (encode) or the sum (decode) when the host asks for console summing */
+    std::unique_ptr<tracktion::graph::Node> withSummingCurve (Edit& edit, std::unique_ptr<tracktion::graph::Node> node, bool encode)
+    {
+        if (node == nullptr)
+            return node;
+
+        const float k = edit.engine.getEngineBehaviour().getSummingCurve (edit);
+
+        if (k <= 0.0f)
+            return node;
+
+        return tracktion::graph::makeNode<SummingCurveNode> (std::move (node), k, encode);
+    }
+
     enum class ClipRole
     {
         arranger,
@@ -1645,13 +1719,13 @@ std::unique_ptr<tracktion::graph::Node> createNodeForAudioTrack (AudioTrack& at,
         auto sumNode = std::make_unique<SummingNode>();
 
         if (node)
-            sumNode->addInput (std::move (node));
+            sumNode->addInput (withSummingCurve (at.edit, std::move (node), true));
 
         for (auto inputTrack : inputTracks)
             if (auto n = createNodeForTrack (*inputTrack, params))
-                sumNode->addInput (std::move (n));
+                sumNode->addInput (withSummingCurve (at.edit, std::move (n), true));
 
-        node = std::move (sumNode);
+        node = withSummingCurve (at.edit, std::move (sumNode), false);
     }
 
     node = createPluginNodeForTrack (at, *trackMuteState, std::move (node), playHeadState, params);
@@ -1709,14 +1783,14 @@ std::unique_ptr<tracktion::graph::Node> createNodeForSubmixTrack (FolderTrack& s
         if (ft->isSubmixFolder())
         {
             if (auto node = createNodeForSubmixTrack (*ft, params))
-                sumNode->addInput (std::move (node));
+                sumNode->addInput (withSummingCurve (submixTrack.edit, std::move (node), true));
         }
         else
         {
             for (auto at : ft->getAllAudioSubTracks (false))
                 if (params.allowedTracks == nullptr || params.allowedTracks->contains (at))
                     if (auto node = createNodeForAudioTrack (*at, params))
-                        sumNode->addInput (std::move (node));
+                        sumNode->addInput (withSummingCurve (submixTrack.edit, std::move (node), true));
         }
     }
 
@@ -1725,13 +1799,13 @@ std::unique_ptr<tracktion::graph::Node> createNodeForSubmixTrack (FolderTrack& s
         if (params.allowedTracks == nullptr || params.allowedTracks->contains (at))
             if (at->isProcessing (true))
                 if (auto node = createNodeForAudioTrack (*at, params))
-                    sumNode->addInput (std::move (node));
+                    sumNode->addInput (withSummingCurve (submixTrack.edit, std::move (node), true));
 
     if (sumNode->getDirectInputNodes().empty())
         return {};
 
     // Finally the effects
-    std::unique_ptr<Node> node = std::move (sumNode);
+    std::unique_ptr<Node> node = withSummingCurve (submixTrack.edit, std::move (sumNode), false);
     auto trackMuteState = std::make_unique<TrackMuteState> (submixTrack, false, false);
 
     if (params.tracksToProcessWhileMuted.contains (submixTrack.itemID))
@@ -1998,13 +2072,13 @@ std::unique_ptr<tracktion::graph::Node> createNodeForEdit (EditPlaybackContext& 
 
                     if (auto node = createGroupFreezeNodeForDevice (edit, *device, params.processState))
                     {
-                        deviceNodes[device].push_back (std::move (node));
+                        deviceNodes[device].push_back (withSummingCurve (edit, std::move (node), true));
                         devicesWithFrozenNodes.push_back (device);
                     }
                 }
                 else if (auto node = createNodeForTrack (*t, params))
                 {
-                    deviceNodes[device].push_back (std::move (node));
+                    deviceNodes[device].push_back (withSummingCurve (edit, std::move (node), true));
                 }
             }
         }
@@ -2105,12 +2179,12 @@ std::unique_ptr<tracktion::graph::Node> createNodeForEdit (EditPlaybackContext& 
 
             if (auto sendNode = createInsertSendNode (*ins, *device))
             {
-                sumNode->addInput (std::move (sendNode));
+                sumNode->addInput (withSummingCurve (edit, std::move (sendNode), true));
                 deviceIsBeingUsedAsInsert = true;
             }
         }
 
-        std::unique_ptr<Node> node = std::move (sumNode);
+        std::unique_ptr<Node> node = withSummingCurve (edit, std::move (sumNode), false);
 
         if (! deviceIsBeingUsedAsInsert)
         {
@@ -2198,13 +2272,13 @@ std::unique_ptr<tracktion::graph::Node> createNodeForEdit (Edit& edit, const Cre
         }
 
         if (auto node = createNodeForTrack (*t, params))
-            trackNodes.push_back (std::move (node));
+            trackNodes.push_back (withSummingCurve (edit, std::move (node), true));
     }
 
     auto sumNode = std::make_unique<SummingNode> (std::move (trackNodes));
     sumNode->setDoubleProcessingPrecision (edit.engine.getPropertyStorage().getProperty (SettingID::use64Bit, false));
 
-    auto node = std::unique_ptr<Node> (std::move (sumNode));
+    auto node = withSummingCurve (edit, std::move (sumNode), false);
     node = createMasterPluginsNode (edit, playHeadState, std::move (node), params);
     node = createMasterFadeInOutNode (edit, std::move (node), params);
     node = createRackNode (std::move (node), edit.getRackList(), params);
