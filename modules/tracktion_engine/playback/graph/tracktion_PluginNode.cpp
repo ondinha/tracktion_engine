@@ -218,6 +218,8 @@ void PluginNode::process (ProcessContext& pc)
     }
     else
     {
+        const auto timingStart = Plugin::processTimingEnabled.load (std::memory_order_relaxed)
+                                    ? juce::Time::getHighResolutionTicks() : 0;
         const auto blockTimeRange = getEditTimeRange();
         auto inputMidiIter = inputBuffers.midi.begin();
 
@@ -269,6 +271,9 @@ void PluginNode::process (ProcessContext& pc)
 
             isAllNotesOff = false;
         }
+
+        if (timingStart != 0)
+            plugin->processTime.add (juce::Time::getHighResolutionTicks() - timingStart);
     }
 
     // If the plugin was bypassed, use the delayed audio

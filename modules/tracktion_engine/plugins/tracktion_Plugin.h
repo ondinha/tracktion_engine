@@ -591,6 +591,25 @@ public:
 
     std::unique_ptr<WindowState> windowState;
 
+    //==============================================================================
+    /** Processing time, for a host's profiler: while processTimingEnabled is set, every PluginNode playing this
+        plug-in adds the time its process() took (juce::Time::getHighResolutionTicks, summed over the threads that
+        ran it) and counts the call; peakTicks holds the longest single call - a reader takes it with exchange (0).
+        Lock-free; nothing is measured while the flag is off. */
+    struct ProcessTime
+    {
+        std::atomic<juce::int64> ticks { 0 }, calls { 0 }, peakTicks { 0 };
+        void add (juce::int64 t) noexcept
+        {
+            ticks.fetch_add (t, std::memory_order_relaxed);
+            calls.fetch_add (1, std::memory_order_relaxed);
+            for (auto p = peakTicks.load (std::memory_order_relaxed);
+                 t > p && ! peakTicks.compare_exchange_weak (p, t, std::memory_order_relaxed);) {}
+        }
+    };
+    ProcessTime processTime;
+    static inline std::atomic<bool> processTimingEnabled { false };
+
     /** Shows the plugin's editor window, creating it if necessary. */
     void showWindowExplicitly();
 
