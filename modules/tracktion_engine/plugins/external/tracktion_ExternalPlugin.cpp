@@ -1188,7 +1188,8 @@ void ExternalPlugin::initialise (const PluginInitialisationInfo& info)
 
     mpeRemapper->reset();
     midiPanicNeeded = false;
-    processingFailed = false;   // a fresh start: a plug-in that threw gets another chance
+    // processingFailed stays: a plug-in that threw is silenced until its instance is created again (a graph rebuild or a
+    // device change re-initialises it and must not give it, and the host's report of it, away)
 
     if (auto pi = getAudioPluginInstance())
     {
@@ -1944,6 +1945,7 @@ void ExternalPlugin::completePluginInstanceCreation (std::unique_ptr<juce::Audio
     }
 
     newInstance->enableAllBuses();
+    processingFailed = false;   // a fresh instance: a plug-in that threw gets another chance
     loadedInstance = LoadedInstance::create (*this, std::move (newInstance));
     hasLoadedInstance = true;
     isAsyncInitialising = false;
