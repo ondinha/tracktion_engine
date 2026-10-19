@@ -608,6 +608,12 @@ public:
         }
     };
     ProcessTime processTime;
+
+    /** A fair compare for a host's A / B: while set, every PluginNode playing this plug-in brings its output to the
+        loudness of its input (K-weighted, ~3 s average, +-12 dB at most), so A, B and bypass are heard at one level;
+        levelMatchDb = the gain applied now. Gain only: latency and timing don't change. */
+    std::atomic<bool> levelMatch { false };
+    std::atomic<float> levelMatchDb { 0.0f };
     static inline std::atomic<bool> processTimingEnabled { false };
 
     /** Shows the plugin's editor window, creating it if necessary. */

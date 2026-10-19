@@ -124,6 +124,7 @@ void PluginNode::prepareToPlay (const tracktion::graph::PlaybackInitialisationIn
     // otherwise pass its input through undelayed while the graph still compensates for its latency - its track
     // then plays early by that latency
     canProcessBypassed = balanceLatency && latencyNumSamples > 0;
+    for (auto* k : { &kIn, &kOut }) for (auto& f : *k) f.prepare (info.sampleRate);
 
     if (canProcessBypassed)
     {
@@ -168,6 +169,8 @@ void PluginNode::process (ProcessContext& pc)
 {
     auto inputBuffers = input->getProcessedOutput();
     auto& inputAudioBlock = inputBuffers.audio;
+    const bool matching = plugin->levelMatch.load (std::memory_order_relaxed);
+    const double blockInPower = matching ? kPower (inputAudioBlock, kIn) : 0.0;
 
     auto& outputBuffers = pc.buffers;
     auto outputAudioView = outputBuffers.audio;
@@ -315,10 +318,78 @@ void PluginNode::process (ProcessContext& pc)
         }
     }
 
+    // a host's fair A / B (Plugin::levelMatch): the output follows the input's K-weighted loudness
+    if (matching)
+    {
+        const double blockOutPower = kPower (outputAudioView, kOut);
+        const double a = 1.0 - std::exp (-(double) blockNumSamples / (3.0 * sampleRate));
+        if (! lmActive) { lmIn = blockInPower; lmOut = blockOutPower; lmGain = 1.0; lmActive = true; }
+        lmIn += (blockInPower - lmIn) * a;
+        lmOut += (blockOutPower - lmOut) * a;
+        const double target = lmOut > 1e-10 ? juce::jlimit (0.25, 4.0, std::sqrt ((lmIn + 1e-12) / (lmOut + 1e-12))) : lmGain;
+        const auto n = (int) blockNumSamples;
+        for (choc::buffer::ChannelCount c = 0; c < outputAudioView.getNumChannels(); ++c)
+        {
+            auto* d = outputAudioView.getChannel (c).data.data;
+            for (int i = 0; i < n; ++i) d[i] *= (float) (lmGain + (target - lmGain) * (i + 1) / n);
+        }
+        lmGain = target;
+        plugin->levelMatchDb.store ((float) (20.0 * std::log10 (lmGain)), std::memory_order_relaxed);
+    }
+    else if (lmActive)
+    {
+        lmActive = false;
+        for (auto* k : { &kIn, &kOut }) for (auto& f : *k) f.clear();
+        plugin->levelMatchDb.store (0.0f, std::memory_order_relaxed);
+    }
+
    #if TRACKTION_SANITISE_PLUGIN_OUTPUT
     // Some plugins flake and add NaNs so zero these out to avoid killing all the audio downstream
     sanitise (outputAudioView);
    #endif
+}
+
+//==============================================================================
+void PluginNode::KFilter::prepare (double sr)
+{
+    // ITU-R BS.1770 K-weighting at any rate: a +4 dB high shelf from ~1.5 kHz, then a 38 Hz high-pass
+    const double pi = juce::MathConstants<double>::pi;
+    {
+        const double A = std::pow (10.0, 4.0 / 40.0), w0 = 2 * pi * 1500.0 / sr, cw = std::cos (w0), al = std::sin (w0) / (2 * 0.7071), sA = 2 * std::sqrt (A) * al;
+        const double a0 = (A + 1) - (A - 1) * cw + sA;
+        b[0][0] = A * ((A + 1) + (A - 1) * cw + sA) / a0; b[0][1] = -2 * A * ((A - 1) + (A + 1) * cw) / a0; b[0][2] = A * ((A + 1) + (A - 1) * cw - sA) / a0;
+        a[0][1] = 2 * ((A - 1) - (A + 1) * cw) / a0; a[0][2] = ((A + 1) - (A - 1) * cw - sA) / a0;
+    }
+    {
+        const double w0 = 2 * pi * 38.0 / sr, cw = std::cos (w0), al = std::sin (w0) / (2 * 0.5), a0 = 1 + al;
+        b[1][0] = (1 + cw) / 2 / a0; b[1][1] = -(1 + cw) / a0; b[1][2] = (1 + cw) / 2 / a0;
+        a[1][1] = -2 * cw / a0; a[1][2] = (1 - al) / a0;
+    }
+    clear();
+}
+
+double PluginNode::KFilter::run (double x)
+{
+    for (int s = 0; s < 2; ++s)
+    {
+        const double y = b[s][0] * x + z[s][0];
+        z[s][0] = b[s][1] * x - a[s][1] * y + z[s][1];
+        z[s][1] = b[s][2] * x - a[s][2] * y;
+        x = y;
+    }
+    return x;
+}
+
+double PluginNode::kPower (choc::buffer::ChannelArrayView<float> v, std::array<KFilter, 2>& k)
+{
+    double sum = 0;
+    const auto n = v.getNumFrames(), nc = std::min<choc::buffer::ChannelCount> (2, v.getNumChannels());
+    for (choc::buffer::ChannelCount c = 0; c < nc; ++c)
+    {
+        auto* d = v.getChannel (c).data.data;
+        for (choc::buffer::FrameCount i = 0; i < n; ++i) { const double y = k[(size_t) c].run (d[i]); sum += y * y; }
+    }
+    return n > 0 && nc > 0 ? sum / (double) (n * nc) : 0.0;
 }
 
 //==============================================================================

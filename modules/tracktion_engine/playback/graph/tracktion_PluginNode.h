@@ -79,6 +79,19 @@ private:
     TimeDuration automationAdjustmentTime;
 
     std::shared_ptr<tracktion::graph::LatencyProcessor> latencyProcessor;
+
+    /** Plugin::levelMatch: the output brought to the input's K-weighted loudness */
+    struct KFilter
+    {
+        double b[2][3] {}, a[2][3] {}, z[2][2] {};   // two biquads (shelf, high-pass), transposed DF II
+        void prepare (double sr);
+        double run (double x);
+        void clear() { for (auto& s : z) s[0] = s[1] = 0; }
+    };
+    std::array<KFilter, 2> kIn, kOut;
+    double lmIn = 0, lmOut = 0, lmGain = 1;
+    bool lmActive = false;
+    double kPower (choc::buffer::ChannelArrayView<float>, std::array<KFilter, 2>&);
     std::optional<NodeProperties> cachedNodeProperties;
     bool isPrepared = false, canUseSourceBuffers = false;
 
