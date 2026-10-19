@@ -968,6 +968,14 @@ void EditPlaybackContext::fillNextNodeBlock (float* const* allChannels, int numC
 {
     nodePlaybackContext->updateReferenceSampleRange (numSamples);
 
+    if (idle.load (std::memory_order_relaxed))
+    {
+        if (! nodePlaybackContext->playHead.isPlaying())
+            return;   // the host let it sleep: nothing runs on silence
+
+        idle.store (false, std::memory_order_relaxed);   // play / record woke it
+    }
+
     // Sync this playback context with a master context
     if (nodeContextToSyncTo && nodePlaybackContext->playHead.isPlaying() && nodeContextToSyncTo->getNodePlayHead() != nullptr)
     {

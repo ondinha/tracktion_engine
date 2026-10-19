@@ -203,6 +203,14 @@ private:
     juce::Result startRecording (TimePosition start, TimePosition punchIn);
     void startPlaying (TimePosition start);
 
+public:
+    /** Idle: while the playhead is stopped no block is processed (the graph, its plug-ins and file readers stay
+        prepared - waking is instant). Play / record clears it by itself on the next block; a host clears it to hear
+        live input while stopped. */
+    void setIdle (bool shouldBeIdle) noexcept           { idle.store (shouldBeIdle, std::memory_order_relaxed); }
+    bool isIdle() const noexcept                        { return idle.load (std::memory_order_relaxed); }
+
+private:
     friend class DeviceManager;
 
     juce::WeakReference<EditPlaybackContext> contextToSyncTo;
@@ -215,6 +223,7 @@ private:
     std::unique_ptr<ContextSyncroniser> contextSyncroniser;
 
     struct NodePlaybackContext;
+    std::atomic<bool> idle { false };
     std::unique_ptr<NodePlaybackContext> nodePlaybackContext;
 
     juce::WeakReference<EditPlaybackContext> nodeContextToSyncTo;
