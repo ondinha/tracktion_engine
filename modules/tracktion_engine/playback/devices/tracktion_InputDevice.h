@@ -241,6 +241,11 @@ public:
     EditPlaybackContext& context;   /**< The EditPlaybackContext this instance belongs to. */
     Edit& edit;                     /**< The Edit this instance belongs to. */
 
+    /** A MIDI input attached to several tracks plays only into this one (its EditItemID raw value; 0 = all of its
+        targets): the host can move live play between tracks - e.g. to the selected instrument - by setting it, with no
+        graph rebuild. Note-offs, sustain release and all-notes-off still reach every target, so nothing hangs. */
+    std::atomic<juce::uint64> liveTargetFilter { 0 };
+
     //==============================================================================
     struct Destination : public Selectable
     {

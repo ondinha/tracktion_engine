@@ -83,6 +83,12 @@ void MidiInputDeviceNode::handleIncomingMidiMessage (const juce::MidiMessage& me
     if (state->activeNode.load (std::memory_order_acquire) != this)
         return;
 
+    // the host plays this input into one of its targets only (InputDeviceInstance::liveTargetFilter); releases pass
+    if (const auto only = instance.liveTargetFilter.load (std::memory_order_relaxed); only != 0 && only != targetID.getRawID())
+        if (! (message.isNoteOff() || message.isAllNotesOff() || message.isAllSoundOff()
+               || (message.isController() && message.getControllerNumber() == 64 && message.getControllerValue() < 64)))
+            return;
+
     auto channelToUse = midiInputDevice.getChannelToUse().getChannelNumber();
 
     {
