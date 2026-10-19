@@ -71,6 +71,11 @@ private:
     tracktion::engine::MidiMessageArray midiMessageArray;
     int subBlockSizeToUse = -1;
     bool balanceLatency = true, canProcessBypassed = false;
+    // a bypassed latent plug-in that isn't hosted (ours / Tracktion's) isn't run at all - its output would be replaced by
+    // the delayed dry anyway; when it comes back it is fed `warmupSamplesLeft` (its latency) of real input while the
+    // delayed dry still plays, so nothing stale from before the bypass is heard
+    bool skippedWhileBypassed = false;
+    int warmupSamplesLeft = 0;
     TimeDuration automationAdjustmentTime;
 
     std::shared_ptr<tracktion::graph::LatencyProcessor> latencyProcessor;

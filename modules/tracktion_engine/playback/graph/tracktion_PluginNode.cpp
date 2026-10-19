@@ -199,6 +199,20 @@ void PluginNode::process (ProcessContext& pc)
     auto numSamplesLeft = blockNumSamples;
 
     bool shouldProcessPlugin = canProcessBypassed || plugin->isEnabled();
+    const bool enabledNow = plugin->isEnabled();
+
+    // bypassed and latent: only a hosted plug-in gets its bypass processing, ours / Tracktion's would compute a block
+    // the delayed dry overwrites (a disabled STFT effect cost as much as an enabled one)
+    if (canProcessBypassed && ! enabledNow && dynamic_cast<ExternalPlugin*> (plugin.get()) == nullptr)
+    {
+        shouldProcessPlugin = false;
+        skippedWhileBypassed = true;
+    }
+    else if (enabledNow && skippedWhileBypassed)
+    {
+        skippedWhileBypassed = false;
+        warmupSamplesLeft = latencyNumSamples;
+    }
     bool isAllNotesOff = inputBuffers.midi.isAllNotesOff || playHeadState.didPlayheadJump();
 
     if (trackMuteState != nullptr)
@@ -279,8 +293,11 @@ void PluginNode::process (ProcessContext& pc)
     // If the plugin was bypassed, use the delayed audio
     if (latencyProcessor)
     {
+        const bool warmingUp = warmupSamplesLeft > 0 && enabledNow;
+        if (warmingUp) warmupSamplesLeft = std::max (0, warmupSamplesLeft - (int) blockNumSamples);
+
         // A slightly better approach would be to crossfade between the processed and latency block to minimise any discrepancies
-        if (plugin->isEnabled())
+        if (enabledNow && ! warmingUp)
         {
             auto numSamples = (int) blockNumSamples;
             latencyProcessor->clearAudio (numSamples);
